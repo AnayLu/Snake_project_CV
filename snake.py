@@ -45,6 +45,8 @@ def menu(cap, handsDetector):
 
         if (x_tip is not None) and (y_tip is not None) and(10<=x_tip<=610) and (750<=y_tip<=900):
             flag = 2
+        elif (x_tip is not None) and (y_tip is not None) and(10<=x_tip<=610) and (350<=y_tip<=500):
+            flag=1
     res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
     cv2.putText(res_image, 'Immortal snake', (40, 845), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
     cv2.putText(res_image, 'Snake Ninja', (85, 445), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
