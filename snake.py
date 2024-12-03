@@ -1,95 +1,271 @@
 import cv2
-import imutils
 import numpy as np
+import mediapipe as mp
+import time
 
 score = 0
-max_score = 20
+max_score = 11
 list_capacity = 0
 max_lc = 20
+crit_dist = 25
 l = []
 flag = 0
-apple_x = None
-apple_y = None
-center = None
-
+apple_radius = 10
+apple_x, apple_y, center = None, None, None
+snake = []
+scr = 0
+x_tip, y_tip = None, None
+crit_time = 2
+start_time = time.time()
 
 # distance function
 def dist(pt1, pt2):
     return np.sqrt((pt1[0] - pt2[0]) ** 2 + (pt1[1] - pt2[1]) ** 2)
 
-
-cap = cv2.VideoCapture(0)
-
-# Snake game in Python
-while 1:
-
+def menu(cap, handsDetector):
+    global flag
     ret, frame = cap.read()
-    img = imutils.resize(frame.copy(), width=600)
-    img = cv2.GaussianBlur(img, (11, 11), 0)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    flipped = np.fliplr(frame)
+    flippedRGB = cv2.cvtColor(flipped, cv2.COLOR_BGR2RGB)
+    results = handsDetector.process(flippedRGB)
+    cv2.rectangle(flippedRGB, (10, 750), (610, 900), (154, 214, 143), -1)
+    cv2.rectangle(flippedRGB, (660, 750), (1260, 900), (154, 214, 143), -1)
+    cv2.rectangle(flippedRGB, (1310, 750), (1910, 900), (154, 214, 143), -1)
+    cv2.rectangle(flippedRGB, (1310, 750), (1910, 900), (154, 214, 143), -1)
+    cv2.rectangle(flippedRGB, (10, 350), (610, 500), (154, 214, 143), -1)
+    cv2.rectangle(flippedRGB, (1310, 350), (1910, 500), (154, 214, 143), -1)
+    if results.multi_hand_landmarks is not None:
+        # нас интересует только подушечка указательного пальца (индекс 8)
+        # нужно умножить координаты а размеры картинки
+        x_tip = int(results.multi_hand_landmarks[0].landmark[8].x *
+                    flippedRGB.shape[1])
+        y_tip = int(results.multi_hand_landmarks[0].landmark[8].y *
+                    flippedRGB.shape[0])
+        cv2.circle(flippedRGB, (x_tip, y_tip), 10, (255, 0, 0), -1)
 
-    if apple_x is None or apple_y is None:
-        # assigning random coefficients for apple coordinates
-        apple_x = np.random.randint(30, frame.shape[0] - 30)
-        apple_y = np.random.randint(100, 350)
+        if (x_tip is not None) and (y_tip is not None) and(10<=x_tip<=610) and (750<=y_tip<=900):
+            flag = 2
+    res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+    cv2.putText(res_image, 'Immortal snake', (40, 845), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
+    cv2.putText(res_image, 'Snake Ninja', (85, 445), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
+    cv2.imshow('live feed', res_image)
+    if cv2.waitKey(1) == 65:
+        return
 
-    cv2.circle(frame, (apple_x, apple_y), 3, (0, 0, 255), -1)
+def immortal_snake(cap, handsDetector, crit_dist, max_score):
+    global apple_x
+    global apple_y
+    global center
+    global snake
+    global score
+    global scr
+    global list_capacity
+    global flag
+    global x_tip
+    global y_tip
+    ret, frame = cap.read()
+    flipped = np.fliplr(frame)
+    flippedRGB = cv2.cvtColor(flipped, cv2.COLOR_BGR2RGB)
+    results = handsDetector.process(flippedRGB)
+    height, width, _ = frame.shape
+    if score == max_score:
+        scr, list_capacity = 0, 0
+        snake = []
+        apple_x, apple_y, center = None, None, None
+        res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        cv2.rectangle(flippedRGB, (660, 850), (1260, 1000), (154, 214, 143), -1)
+        cv2.rectangle(flippedRGB, (610, 50), (1310, 200), (255, 255, 255), -1)
+        res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        if results.multi_hand_landmarks is not None:
+            # нас интересует только подушечка указательного пальца (индекс 8)
+            # нужно умножить координаты а размеры картинки
+            x_tip = int(results.multi_hand_landmarks[0].landmark[8].x *
+                        flippedRGB.shape[1])
+            y_tip = int(results.multi_hand_landmarks[0].landmark[8].y *
+                        flippedRGB.shape[0])
+            cv2.circle(flippedRGB, (x_tip, y_tip), 15, (0, 0, 255), -1)
+            res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        cv2.putText(res_image, 'Congratulations!!', (660, 145), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 255), 6)
+        cv2.putText(res_image, 'Back to menu', (710, 945), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
+        if (x_tip is not None) and (y_tip is not None) and (660<=x_tip<=1260) and (850<=y_tip<=1000):
+            flag = 0
+            score = 0
+            x_tip, y_tip = None, None
+        cv2.imshow('live feed', res_image)
+    else:
+        if apple_x is None or apple_y is None:
+            # assigning random coefficients for apple coordinates
+            apple_x = np.random.randint(30, width - 30)
+            apple_y = np.random.randint(30, height - 30)
 
-    # change this range acc to your need
-    greenLower = (29, 86, 18)
-    greenUpper = (93, 255, 255)
+        apple = (apple_x, apple_y)
+        cv2.rectangle(flippedRGB, (50, 50), (400, 150), (255, 255, 255), -1)
+        cv2.circle(flippedRGB, apple, apple_radius, (0, 255, 0), -1)
+        res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        if results.multi_hand_landmarks is not None:
+            # нас интересует только подушечка указательного пальца (индекс 8)
+            # нужно умножить координаты а размеры картинки
+            x_tip = int(results.multi_hand_landmarks[0].landmark[8].x *
+                        flippedRGB.shape[1])
+            y_tip = int(results.multi_hand_landmarks[0].landmark[8].y *
+                        flippedRGB.shape[0])
+            if len(snake) == 0:
+                snake.append([x_tip, y_tip])
+            snake[0][0] = x_tip
+            snake[0][1] = y_tip
+            if scr == 1:
+                for i in range(len(snake) - 1, 0, -1):
+                    snake[i][0] = snake[i - 1][0]
+                    snake[i][1] = snake[i - 1][1]
+                scr = 0
+            scr += 1
+            for i in range(1, len(snake)):
+                cv2.circle(flippedRGB, (snake[i][0], snake[i][1]), 15, (0, 0, 255), -1)
+                res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+            cv2.circle(flippedRGB, (snake[0][0], snake[0][1]), 15, (0, 0, 255), -1)
+            res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
 
-    # masking out the green color
-    mask = cv2.inRange(img, greenLower, greenUpper)
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
 
-    # find contours
-    cnts = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = imutils.grab_contours(cnts)
 
-    if len(cnts) > 0:
-        ball_cont = max(cnts, key=cv2.contourArea)
-        (x, y), radius = cv2.minEnclosingCircle(ball_cont)  # find the minimum enclosing circle about the found contour
-
-        M = cv2.moments(ball_cont)
-        center = (int(M['m10'] / M['m00']), int(M['m01'] / M['m00']))
-
-        if radius > 10:
-            cv2.circle(frame, center, 2, (0, 0, 255), 3)
-
-            if len(l) > list_capacity:
-                l = l[1:]
-
-            if prev_c and (dist(prev_c, center) > 3.5):
-                l.append(center)
-
-            apple = (apple_x, apple_y)
-            if dist(apple, center) < 5:
+            center = (x_tip, y_tip)
+            if dist(apple, center) < crit_dist:
                 score += 1
-                if score == max_score:
-                    flag = 1
                 list_capacity += 1
                 apple_x = None
                 apple_y = None
+                snake.append([x_tip, y_tip])
 
-    for i in range(1, len(l)):
-        if l[i - 1] is None or l[i] is None:
-            continue
-        r, g, b = np.random.randint(0, 255, 3)
 
-        cv2.line(frame, l[i], l[i - 1], (int(r), int(g), int(b)), thickness=int(len(l) / max_lc + 2) + 2)
+        for i in range(1, len(l)):
+            if l[i - 1] is None or l[i] is None:
+                continue
+            r, g, b = np.random.randint(0, 255, 3)
 
-    cv2.putText(frame, 'Score :' + str(score), (450, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 203), 2)
-    if flag == 1:
-        cv2.putText(frame, 'YOU WIN !!', (100, 250), cv2.FONT_HERSHEY_SIMPLEX, 3, (255, 255, 0), 3)
+            cv2.line(res_image, l[i], l[i - 1], (int(r), int(g), int(b)), thickness=int(len(l) / max_lc + 2) + 2)
+        cv2.putText(res_image, 'Score: ' + str(score), (60, 120), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
 
-    cv2.imshow('live feed', frame)
-    cv2.imshow('mask', mask)
-    prev_c = center
+        cv2.imshow('live feed', res_image)
 
-    if cv2.waitKey(1) == 27:
-        break
 
+    if cv2.waitKey(1) == 65:
+        return
+
+def snake_ninja(cap, handsDetector, crit_dist, max_score, crit_time):
+    global apple_x
+    global apple_y
+    global center
+    global snake
+    global score
+    global scr
+    global list_capacity
+    global flag
+    global x_tip
+    global y_tip
+    global start_time
+    ret, frame = cap.read()
+    flipped = np.fliplr(frame)
+    flippedRGB = cv2.cvtColor(flipped, cv2.COLOR_BGR2RGB)
+    results = handsDetector.process(flippedRGB)
+    height, width, _ = frame.shape
+    res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+    if score == max_score:
+        scr, list_capacity = 0, 0
+        snake = []
+        apple_x, apple_y, center = None, None, None
+        res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        cv2.rectangle(flippedRGB, (660, 850), (1260, 1000), (154, 214, 143), -1)
+        cv2.rectangle(flippedRGB, (610, 50), (1310, 200), (255, 255, 255), -1)
+        res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        if results.multi_hand_landmarks is not None:
+            # нас интересует только подушечка указательного пальца (индекс 8)
+            # нужно умножить координаты а размеры картинки
+            x_tip = int(results.multi_hand_landmarks[0].landmark[8].x *
+                        flippedRGB.shape[1])
+            y_tip = int(results.multi_hand_landmarks[0].landmark[8].y *
+                        flippedRGB.shape[0])
+            cv2.circle(flippedRGB, (x_tip, y_tip), 15, (0, 0, 255), -1)
+            res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        cv2.putText(res_image, 'Congratulations!!', (660, 145), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 255), 6)
+        cv2.putText(res_image, 'Back to menu', (710, 945), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
+        if (x_tip is not None) and (y_tip is not None) and (660<=x_tip<=1260) and (850<=y_tip<=1000):
+            flag = 0
+            score = 0
+            x_tip, y_tip = None, None
+        cv2.imshow('live feed', res_image)
+    else:
+        x = time.time()
+        if x- start_time>=crit_time:
+            score = 0
+            scr, list_capacity = 0, 0
+            snake = []
+        if apple_x is None or apple_y is None or (x-start_time >= crit_time):
+            # assigning random coefficients for apple coordinates
+            apple_x = np.random.randint(30, width - 30)
+            apple_y = np.random.randint(30, height - 30)
+            start_time = time.time()
+
+        apple = (apple_x, apple_y)
+        cv2.rectangle(flippedRGB, (50, 50), (400, 150), (255, 255, 255), -1)
+        cv2.circle(flippedRGB, apple, apple_radius, (0, 255, 0), -1)
+        res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+        if results.multi_hand_landmarks is not None:
+            # нас интересует только подушечка указательного пальца (индекс 8)
+            # нужно умножить координаты а размеры картинки
+            x_tip = int(results.multi_hand_landmarks[0].landmark[8].x *
+                        flippedRGB.shape[1])
+            y_tip = int(results.multi_hand_landmarks[0].landmark[8].y *
+                        flippedRGB.shape[0])
+            if len(snake) == 0:
+                snake.append([x_tip, y_tip])
+            snake[0][0] = x_tip
+            snake[0][1] = y_tip
+            if scr == 1:
+                for i in range(len(snake) - 1, 0, -1):
+                    snake[i][0] = snake[i - 1][0]
+                    snake[i][1] = snake[i - 1][1]
+                scr = 0
+            scr += 1
+            for i in range(1, len(snake)):
+                cv2.circle(flippedRGB, (snake[i][0], snake[i][1]), 15, (0, 0, 255), -1)
+                res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+            cv2.circle(flippedRGB, (snake[0][0], snake[0][1]), 15, (0, 0, 255), -1)
+            res_image = cv2.cvtColor(flippedRGB, cv2.COLOR_RGB2BGR)
+
+
+
+            center = (x_tip, y_tip)
+            if dist(apple, center) < crit_dist:
+                score += 1
+                list_capacity += 1
+                apple_x = None
+                apple_y = None
+                snake.append([x_tip, y_tip])
+
+        for i in range(1, len(l)):
+            if l[i - 1] is None or l[i] is None:
+                continue
+            r, g, b = np.random.randint(0, 255, 3)
+
+            cv2.line(res_image, l[i], l[i - 1], (int(r), int(g), int(b)), thickness=int(len(l) / max_lc + 2) + 2)
+        cv2.putText(res_image, 'Score: ' + str(score), (60, 120), cv2.FONT_HERSHEY_SIMPLEX, 2.2, (0, 0, 0), 6)
+
+        cv2.imshow('live feed', res_image)
+
+    if cv2.waitKey(1) == 65:
+        return
+
+cap = cv2.VideoCapture(0)
+
+handsDetector = mp.solutions.hands.Hands()
+
+while True:
+    if flag == 0:
+        menu(cap, handsDetector)
+    elif flag == 2:
+        immortal_snake(cap, handsDetector, crit_dist, max_score)
+    elif flag == 1:
+        snake_ninja(cap, handsDetector, crit_dist, max_score, crit_time)
+
+handsDetector.close()
 cv2.destroyAllWindows()
 cap.release()
